@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             Int            @id @default(autoincrement())
+  name           String
+  email          String         @unique
+  passwordHash   String
+  role           String
+  active         Boolean        @default(true)
+  ambulanceId    Int?           @unique
+  hospitalId     Int?           @unique
+  ambulance      Ambulance?     @relation(fields: [ambulanceId], references: [id], onDelete: Restrict)
+  hospital       Hospital?      @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  sessions       Session[]
+  assignments    DispatchAssignment[]
+  tripEvents     TripStatusEvent[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  bedUpdates     HospitalBed[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([role, active])
+}
+
+model Session {
+  id          String    @id
+  tokenHash   String    @unique
+  csrfToken   String
+  userId      Int?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model Ambulance {
+  id             Int                      @id @default(autoincrement())
+  callSign       String                   @unique
+  type           String
+  status         String                   @default("AVAILABLE")
+  latitude       Float
+  longitude      Float
+  inService      Boolean                  @default(true)
+  lastSeenAt     DateTime                 @default(now())
+  capabilities   AmbulanceCapability[]
+  operator       User?
+  assignments    DispatchAssignment[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([status, inService])
+}
+
+model AmbulanceCapability {
+  ambulanceId Int
+  capability  String
+  ambulance   Ambulance @relation(fields: [ambulanceId], references: [id], onDelete: Cascade)
+
+  @@id([ambulanceId, capability])
+  @@index([capability])
+}
+
+model Hospital {
+  id               Int                  @id @default(autoincrement())
+  name             String
+  ownership        String
+  latitude         Float
+  longitude        Float
+  emergencyEnabled Boolean              @default(true)
+  active           Boolean              @default(true)
+  demoPhone        String?
+  staff            User?
+  specialties      HospitalSpecialty[]
+  beds             HospitalBed[]
+  proposals        HospitalProposal[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([active, emergencyEnabled, ownership])
+}
+
+model HospitalSpecialty {
+  hospitalId Int
+  specialty  String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@id([hospitalId, specialty])
+  @@index([specialty])
+}
+
+model HospitalBed {
+  id          Int       @id @default(autoincrement())
+  hospitalId  Int
+  bedType     String
+  totalCount  Int
+  heldCount   Int       @default(0)
+  updatedById Int?
+  hospital    Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  updatedBy   User?     @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  holds       HospitalCapacityHold[]
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([hospitalId, bedType])
+  @@index([bedType, hospitalId])
+}
+
+model EmergencyRequest {
+  id                Int                  @id @default(autoincrement())
+  publicReference   String               @unique
+  lookupTokenHash   String
+  idempotencyKey    String?              @unique
+  requestType       String
+  status            String               @default("MATCHING")
+  latitude          Float
+  longitude         Float
+  locationLabel     String
+  ownershipFilter   String?
+  specialtyFilter   String?
+  maxDistanceKm     Float?
+  callerName        String?
+  callerPhone       String?
+  notes             String?
+  requirements     RequestRequirement[]
+  assignments      DispatchAssignment[]
+  proposals        HospitalProposal[]
+  tripEvents       TripStatusEvent[]
+  notifications    Notification[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  cancelledAt       DateTime?
+
+  @@index([status, createdAt])
+}
+
+model RequestRequirement {
+  requestId   Int
+  capability  String
+  request     EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@id([requestId, capability])
+  @@index([capability])
+}
+
+model DispatchAssignment {
+  id            Int              @id @default(autoincrement())
+  requestId     Int
+  ambulanceId   Int
+  operatorId    Int?
+  state         String           @default("OFFERED")
+  offeredAt     DateTime         @default(now())
+  respondedAt   DateTime?
+  expiresAt     DateTime
+  declineReason String?
+  isCurrent     Boolean          @default(true)
+  request       EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  ambulance     Ambulance        @relation(fields: [ambulanceId], references: [id], onDelete: Restrict)
+  operator      User?            @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@index([ambulanceId, state])
+  @@index([requestId, isCurrent])
+  @@index([state, expiresAt])
+}
+
+model HospitalProposal {
+  id            Int              @id @default(autoincrement())
+  requestId     Int
+  hospitalId    Int
+  state         String           @default("PENDING")
+  offeredAt     DateTime         @default(now())
+  respondedAt   DateTime?
+  declineReason String?
+  bedType       String?
+  bedHeld       Boolean          @default(false)
+  isCurrent     Boolean          @default(true)
+  request       EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  hospital      Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  holds         HospitalCapacityHold[]
+
+  @@index([hospitalId, state])
+  @@index([requestId, isCurrent])
+}
+
+model HospitalCapacityHold {
+  id                 Int              @id @default(autoincrement())
+  hospitalProposalId Int
+  hospitalBedId      Int
+  releasedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  hospitalProposal   HospitalProposal @relation(fields: [hospitalProposalId], references: [id], onDelete: Cascade)
+  hospitalBed        HospitalBed      @relation(fields: [hospitalBedId], references: [id], onDelete: Restrict)
+
+  @@unique([hospitalProposalId, hospitalBedId])
+  @@index([hospitalBedId, releasedAt])
+}
+
+model TripStatusEvent {
+  id          Int              @id @default(autoincrement())
+  requestId   Int
+  actorUserId Int?
+  oldStatus   String?
+  newStatus   String
+  note        String?
+  createdAt   DateTime         @default(now())
+  request     EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor       User?            @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  requestId Int?
+  type      String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  request   EmergencyRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model AuditLog {
+  id         Int       @id @default(autoincrement())
+  actorId    Int
+  action     String
+  entityType String
+  entityId   String
+  reason     String?
+  createdAt  DateTime  @default(now())
+  actor      User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+
