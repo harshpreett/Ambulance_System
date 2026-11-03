@@ -1,6 +1,4 @@
 # Responda — Ambulance Dispatch and Hospital Coordination Demo
-> **Academic demonstration only. Never use this project to request real emergency assistance.** All locations, people, hospitals, vehicles, bed counts, notifications and trips are synthetic. This software does not contact ambulance services, hospitals, SMS providers or ERSS 112.
-
 
 
 Responda is a browser-based software engineering minor project that demonstrates a coordinated emergency request workflow for the Chandigarh, Mohali and Panchkula sample area. It shows how a caller request can be matched to a capability-compatible ambulance and a sample hospital, then confirmed and updated by provider dashboards.
