@@ -230,7 +230,3 @@ git push -u origin main
 
 Do not commit `.env`, SQLite database files, `node_modules`, build output or real health data. These paths are excluded by `.gitignore`.
 
-## License
-
-MIT. See [LICENSE](LICENSE).
-
